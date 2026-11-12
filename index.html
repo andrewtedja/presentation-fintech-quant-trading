@@ -594,7 +594,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-
 .thank-you .closing-group { margin-top: 46px; color: #f0b90b; font: 800 56px/1.15 var(--display); }
 
 /* === Review toolbar and speaker notes === */
-.deck-viewport { bottom: var(--toolbar-space, 65px); touch-action: pan-y; }
+:root[data-review] { --toolbar-space: 65px; }
+:root:not([data-review]) [data-review-only] { display: none; }
+.deck-viewport { bottom: var(--toolbar-space, 0px); touch-action: pan-y; }
 .deck-controls {
   bottom: 12px;
   display: flex;
@@ -1003,13 +1005,13 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-
 <!-- Review controls live outside the slide and are excluded from print. -->
 <nav class="deck-controls" aria-label="Presentation controls">
   <button type="button" id="prev" aria-label="Previous slide">← <span>Prev</span></button>
-  <output id="counter" aria-live="polite" aria-atomic="true"></output>
+  <output id="counter" aria-live="polite" aria-atomic="true" data-review-only></output>
   <button type="button" id="next" aria-label="Next slide"><span>Next</span> →</button>
-  <span class="control-divider" aria-hidden="true"></span>
-  <button type="button" id="notes-toggle" aria-controls="notes" aria-expanded="false">Notes</button>
-  <button type="button" id="edit-toggle" aria-pressed="false">Edit</button>
-  <button type="button" id="save" hidden>Save HTML</button>
-  <button type="button" id="print">PDF</button>
+  <span class="control-divider" aria-hidden="true" data-review-only></span>
+  <button type="button" id="notes-toggle" aria-controls="notes" aria-expanded="false" data-review-only>Notes</button>
+  <button type="button" id="edit-toggle" aria-pressed="false" data-review-only>Edit</button>
+  <button type="button" id="save" hidden data-review-only>Save HTML</button>
+  <button type="button" id="print" data-review-only>PDF</button>
 </nav>
 <aside class="notes-panel" id="notes" aria-label="Speaker notes" hidden>
   <div class="notes-meta"><span id="notes-time"></span><button type="button" id="notes-close" aria-label="Close speaker notes">×</button></div>
@@ -1159,8 +1161,11 @@ const notesToggle = document.getElementById('notes-toggle');
 const editToggle = document.getElementById('edit-toggle');
 const save = document.getElementById('save');
 const speakerNotes = JSON.parse(document.getElementById('speaker-notes').textContent);
-const staticMode = new URLSearchParams(location.search).has('static');
+const params = new URLSearchParams(location.search);
+const staticMode = params.has('static');
+const reviewMode = !staticMode && params.has('review');
 document.documentElement.toggleAttribute('data-static', staticMode);
+document.documentElement.toggleAttribute('data-review', reviewMode);
 let current = -1;
 let editing = false;
 
@@ -1240,6 +1245,7 @@ function toggleEdit() {
 function saveDeck() {
   const copy = document.documentElement.cloneNode(true);
   copy.removeAttribute('data-static');
+  copy.removeAttribute('data-review');
   copy.querySelector('#stage').removeAttribute('style');
   copy.querySelectorAll('[contenteditable]').forEach(node => node.removeAttribute('contenteditable'));
   copy.querySelectorAll('.slide').forEach((slide, index) => {
@@ -1283,9 +1289,16 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable) return;
-  if (key === 'n') toggleNotes();
-  if (key === 'e') toggleEdit();
-  if (key === 'escape') toggleNotes(false);
+  if (reviewMode && key === 'n') toggleNotes();
+  if (reviewMode && key === 'e') toggleEdit();
+  if (reviewMode && key === 'escape') toggleNotes(false);
+  if (key === 'f' && !event.repeat && document.fullscreenEnabled) {
+    event.preventDefault();
+    const change = document.fullscreenElement
+      ? document.exitFullscreen()
+      : document.documentElement.requestFullscreen();
+    change.catch(() => {});
+  }
 
   let target;
   if (key === 'arrowright' || key === 'pagedown' || (key === ' ' && event.target === document.body)) target = current + 1;
